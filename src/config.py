@@ -77,10 +77,11 @@ class ProjectConfig:
 
     calibration_rect_mm: float = CALIBRATION_RECT_MM
     default_split: str = "test"
-    measurement_method: str = "pca"
+    measurement_method: str = "bbox"
     apply_perspective_correction: bool = False
 
-    image_extensions: tuple[str, ...] = (".JPG",".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff")
+    # Matched case-insensitively in dataset.discover_image_paths (FishNet uses ".JPG").
+    image_extensions: tuple[str, ...] = (".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff")
 
     def resolve_dataset_root(self) -> Path:
         """
