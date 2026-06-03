@@ -7,6 +7,14 @@ assignment.pdf
 outputs/**/*
 !outputs/**/.gitkeep
 
+# Unified storage (Colab Drive mirror / local optional)
+cache/
+figures/
+logs/
+exports/
+runs/
+!runs/.gitkeep
+
 # --- Python ---
 __pycache__/
 *.py[cod]

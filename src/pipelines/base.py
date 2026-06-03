@@ -17,7 +17,7 @@ from src.config import ProjectConfig
 from src.dataset import iterate_dataset, iterate_image_ids
 from src.masks import mask_from_class
 from src.measurement import estimate_length_mm
-from src.visualization import visualize_sample
+from src.visualization.legacy import visualize_sample
 
 logger = logging.getLogger(__name__)
 

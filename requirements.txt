@@ -15,7 +15,12 @@ ipykernel>=6.29
 pytest>=8.0
 ruff>=0.3
 
-# Deep learning (optional — uncomment if needed)
+# Advanced pipeline: depth + 3D measurement (optional)
+# pip install -e ".[advanced]"
+# Or manually:
+#   pip install torch>=2.1 torchvision
+#   pip install git+https://github.com/ByteDance-Seed/Depth-Anything-3.git
+
+# Other ML (optional)
 # ultralytics>=8.0
-# torch>=2.1
 # transformers>=4.38

@@ -57,7 +57,7 @@ class RunManager:
 
     def __init__(self, cfg: ProjectConfig | None = None) -> None:
         self.cfg = cfg or get_config()
-        self.runs_root = self.cfg.repo_root / "outputs" / "runs"
+        self.runs_root = self.cfg.runs_root
         self.registry_path = self.runs_root / "experiments.csv"
         self.runs_root.mkdir(parents=True, exist_ok=True)
 

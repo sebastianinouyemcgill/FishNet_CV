@@ -21,6 +21,7 @@ from src.config import ProjectConfig, get_config
 from src.evaluation import MetricResult, evaluate_run, load_predictions_csv
 from src.experiments.results import ExperimentResult, results_to_dataframe
 from src.experiments.run_manager import RunExistsError, RunManager
+from src.pipelines.advanced import AdvancedPipeline
 from src.pipelines.baseline import BaselinePipeline
 from src.pipelines.registry import get_pipeline
 
@@ -97,6 +98,9 @@ def run_experiment(
     overwrite: bool = False,
     evaluate: bool = True,
     cfg: ProjectConfig | None = None,
+    use_grid_auto_calibration: bool | None = None,
+    use_depth_estimation: bool | None = None,
+    use_3d_measurement: bool | None = None,
 ) -> ExperimentResult:
     """
     Run one experiment into ``outputs/runs/<run_name>/``.
@@ -106,7 +110,9 @@ def run_experiment(
     pipeline:
         ``baseline`` (no perspective) or ``advanced`` (optional perspective).
     perspective:
-        Only applies to ``advanced`` pipeline. Ignored for baseline.
+        Only applies to ``advanced`` pipeline when no grid/depth/3D flags are set.
+    use_grid_auto_calibration, use_depth_estimation, use_3d_measurement:
+        Advanced pipeline only. All default to False (unchanged baseline behavior).
     ground_truth_path:
         CSV for evaluation. Defaults to validation_lengths.csv or lengths_mm.csv.
     image_ids:
@@ -135,8 +141,27 @@ def run_experiment(
 
     if isinstance(pipe, BaselinePipeline):
         use_perspective = False
+        adv_grid = adv_depth = adv_3d = False
     else:
         use_perspective = bool(perspective)
+        cfg_adv = cfg or get_config()
+        adv_grid = (
+            use_grid_auto_calibration
+            if use_grid_auto_calibration is not None
+            else cfg_adv.use_grid_auto_calibration
+        )
+        adv_depth = (
+            use_depth_estimation
+            if use_depth_estimation is not None
+            else cfg_adv.use_depth_estimation
+        )
+        adv_3d = (
+            use_3d_measurement
+            if use_3d_measurement is not None
+            else cfg_adv.use_3d_measurement
+        )
+        if adv_grid or adv_depth or adv_3d:
+            use_perspective = False
 
     manager = RunManager(cfg)
     resolved_name = manager.resolve_run_name(run_name, pipeline=pipeline, method=method)
@@ -152,6 +177,13 @@ def run_experiment(
         limit=limit,
         ground_truth_path=str(ground_truth_path) if ground_truth_path else None,
         n_image_ids=len(image_ids) if image_ids else None,
+        extra={
+            "use_grid_auto_calibration": adv_grid,
+            "use_depth_estimation": adv_depth,
+            "use_3d_measurement": adv_3d,
+        }
+        if pipeline == "advanced"
+        else None,
     )
 
     predictions_path = run_dir / "predictions.csv"
@@ -169,6 +201,7 @@ def run_experiment(
             figures_dir=figures_dir,
         )
     else:
+        assert isinstance(pipe, AdvancedPipeline)
         pipe.run(
             cfg=cfg,
             method=method,
@@ -179,6 +212,9 @@ def run_experiment(
             image_ids=image_ids,
             visualize=visualize,
             figures_dir=figures_dir,
+            use_grid_auto_calibration=adv_grid,
+            use_depth_estimation=adv_depth,
+            use_3d_measurement=adv_3d,
         )
 
     n_predictions = len(load_predictions_csv(predictions_path))

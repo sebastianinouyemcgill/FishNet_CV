@@ -1,0 +1,12 @@
+# Advanced pipeline (install AFTER core requirements.txt)
+# Do not install xformers on macOS — DA3 works without it.
+#
+# Quick install:
+#   ./scripts/install_advanced_deps.sh
+#
+# Or manual:
+-r requirements.txt
+torch>=2.1
+torchvision>=0.16
+# depth-anything-3: pip install git+https://github.com/ByteDance-Seed/Depth-Anything-3.git --no-deps
+# then runtime deps from scripts/install_advanced_deps.sh

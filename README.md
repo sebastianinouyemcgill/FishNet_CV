@@ -245,14 +245,98 @@ Legacy notebooks (`baseline_measurement.ipynb`, `perspective_correction.ipynb`, 
 
 ### Baseline vs advanced
 
-| | Baseline | Advanced |
-|---|----------|----------|
-| **Pipeline** | `pipeline="baseline"` | `pipeline="advanced"` |
-| **Methods** | bbox, pca, skeleton | same + extensions |
-| **Perspective** | always off | optional `perspective=True` |
-| **ML** | none | future hooks |
+| | Baseline | Advanced (legacy) | Advanced (modern) |
+|---|----------|-------------------|-------------------|
+| **Pipeline** | `pipeline="baseline"` | `pipeline="advanced"` | `pipeline="advanced"` + flags |
+| **Methods** | bbox, pca, skeleton | bbox, pca, skeleton | skeleton recommended for 3D |
+| **Calibration** | blue/yellow markers | markers (+ optional perspective) | grid auto (no markers) |
+| **Perspective** | always off | optional `perspective=True` | disabled when grid/depth/3D on |
+| **Depth / 3D** | off | off | optional Depth Anything V3 + 3D arc length |
 
-Both reuse `src/pipelines/base.py` inference loop.
+Baseline always uses `src/pipelines/base.py` (`run_inference`). Advanced uses the same loop only when **all** of `use_grid_auto_calibration`, `use_depth_estimation`, and `use_3d_measurement` are false; otherwise `src/pipelines/advanced_inference.py`.
+
+---
+
+## Advanced pipeline (grid + depth + 3D)
+
+Bypasses fiduciary markers when grid auto-calibration is enabled. Stages:
+
+1. Fish mask from YOLO polygons (`src/masks.py`)
+2. 2D skeleton (`skeletonize_mask`)
+3. Grid spacing via Hough lines + clustering (`src/calibration/grid_auto.py`)
+4. Depth Anything V3 with disk cache (`src/depth/`)
+5. 3D skeleton arc length (`src/measurement/skeleton3d.py`)
+
+Config flags (all default **False** — baseline unchanged):
+
+| Flag | Env var | Meaning |
+|------|---------|---------|
+| `use_grid_auto_calibration` | `FISHNET_GRID_AUTO=1` | `pixels_per_mm` from tank grid |
+| `use_depth_estimation` | `FISHNET_DEPTH=1` | Cached depth maps under `data/processed/depth/` |
+| `use_3d_measurement` | `FISHNET_3D=1` | 3D arc length (requires depth) |
+
+Set physical grid cell size with `grid_square_mm` (default 10 mm) or `FISHNET_GRID_SQUARE_MM`.
+
+### Manual install (depth)
+
+**macOS note:** DA3 lists `xformers` as a dependency, but it is **not required** (DA3 falls back to pure PyTorch SwiGLU). Do **not** install xformers on Apple Silicon unless you use a prebuilt wheel — building from source fails with `clang++: unsupported option '-fopenmp'`.
+
+Use the install script (recommended):
+
+```bash
+chmod +x scripts/install_advanced_deps.sh
+./scripts/install_advanced_deps.sh
+export KMP_DUPLICATE_LIB_OK=TRUE   # avoids OpenMP duplicate-runtime abort on macOS
+```
+
+Or manually:
+
+```bash
+pip install torch>=2.1 torchvision
+pip install git+https://github.com/ByteDance-Seed/Depth-Anything-3.git --no-deps
+pip install "numpy<2" einops huggingface_hub imageio opencv-python pillow omegaconf \
+  safetensors typer requests trimesh e3nn addict evo "moviepy==1.0.3" plyfile pycolmap
+```
+
+First run downloads Hugging Face weights (default: `depth-anything/DA3-SMALL` ~80M params). Set `FISHNET_DEPTH_MODEL=depth-anything/DA3-BASE` if you have enough disk space.
+
+### Example commands (compare ablations)
+
+```bash
+# Baseline (unchanged)
+python main.py --pipeline baseline --method skeleton --run-name baseline_skeleton_v1 --split valid
+
+# Grid auto only (2D skeleton, no markers for scale)
+python main.py --pipeline advanced --method skeleton --grid-auto \
+  --run-name advanced_grid_only_v1 --split valid
+
+# Grid + depth cache, still 2D skeleton
+python main.py --pipeline advanced --method skeleton --grid-auto --depth \
+  --run-name advanced_grid_depth_v1 --split valid
+
+# Full advanced: grid + depth + 3D arc length
+python main.py --pipeline advanced --method skeleton --grid-auto --depth --3d \
+  --run-name advanced_full_v1 --split valid
+```
+
+Notebook API:
+
+```python
+from src.experiments import run_experiments
+
+run_experiments([
+    {"pipeline": "baseline", "method": "skeleton", "run_name": "baseline_skeleton_v1", "split": "valid"},
+    {"pipeline": "advanced", "method": "skeleton", "use_grid_auto_calibration": True,
+     "run_name": "advanced_grid_only_v1", "split": "valid"},
+    {"pipeline": "advanced", "method": "skeleton", "use_grid_auto_calibration": True,
+     "use_depth_estimation": True, "use_3d_measurement": True,
+     "run_name": "advanced_full_v1", "split": "valid"},
+])
+```
+
+Evaluation and CSV formats are unchanged; compare runs in `04_analyze_results.ipynb` via `experiments.csv` and per-run `comparison.csv`.
+
+**Calibration guardrails (advanced):** Grid scale is used only when `grid_ppm / marker_ppm` is within `[0.85, 1.15]` (see `grid_ppm_ratio_min/max` in config); otherwise marker scale is used. Relative depth does not add a Z term unless `use_depth_metric_scale=True` (default **False**); with the default, 3D mode uses the same 2D skeleton length as baseline while still caching depth maps.
 
 ### Run directory layout
 
@@ -329,6 +413,79 @@ Open from repo root so `import src` resolves, or run:
 ```bash
 cd fishnet_cv && jupyter lab notebooks/
 ```
+
+---
+
+## Google Colab + Drive
+
+Persistent data and experiment outputs live on Google Drive under **`UH_CV/`** when running in Colab. Local runs keep the existing `data/` and `outputs/` layout unchanged.
+
+### Drive folder layout
+
+```
+UH_CV/
+├── data/
+│   ├── fishnet/          # images/ + labels/
+│   ├── images/           # optional extras
+│   └── labels/
+├── runs/                 # experiment runs (predictions, metrics, config)
+├── figures/
+│   ├── debug/
+│   └── analysis/
+├── cache/
+│   ├── depth_maps/
+│   └── intermediate_outputs/
+├── logs/
+└── exports/
+    ├── predictions/
+    └── final_results/
+```
+
+### Colab startup (first cell)
+
+```python
+from src.colab_bootstrap import mount_google_drive, setup_notebook_environment
+from src.config import get_config
+from src.experiments import run_experiment
+from src.utils import setup_logging
+
+mount_google_drive()
+REPO, STORAGE = setup_notebook_environment()
+setup_logging()
+cfg = get_config()
+
+run_experiment(
+    pipeline="baseline",
+    method="bbox",
+    split="valid",
+    run_name="baseline_bbox_v1",
+    validation_set_only=True,
+    cfg=cfg,
+)
+```
+
+Clone or upload the repo to Colab, then `pip install -r requirements.txt` (and advanced deps if needed).
+
+### Path configuration
+
+All paths resolve via `src/paths.py` and `ProjectConfig`:
+
+| Variable / field | Local default | Colab (Drive) |
+|------------------|---------------|---------------|
+| `PROJECT_ROOT` | repo root | repo root (code) |
+| `storage_root` | `PROJECT_ROOT` | `/content/drive/MyDrive/UH_CV` |
+| `runs_root` | `outputs/runs` | `UH_CV/runs` |
+| `figures_root` | `outputs/figures` | `UH_CV/figures` |
+| depth cache | `data/processed/depth` | `UH_CV/cache/depth_maps` |
+| `outputs_metrics` / logs | `outputs/metrics` | `UH_CV/logs` |
+
+Override storage anywhere with:
+
+```bash
+export FISHNET_DRIVE_ROOT=/path/to/UH_CV
+```
+
+Notebook experiment cell flags (`RunExperimentsConfig`): `cache_results`, `save_figures_to_drive`, `save_metrics_to_drive`, `save_predictions_to_drive` (default **True**). Set to `False` on Colab to use ephemeral `/tmp` for that artifact class.
 
 ---
 

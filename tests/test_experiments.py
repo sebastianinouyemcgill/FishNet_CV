@@ -15,13 +15,13 @@ from src.experiments import run_experiment
 
 
 def test_run_manager_auto_name() -> None:
-    mgr = RunManager(ProjectConfig(repo_root=Path("/tmp/fake")))
+    mgr = RunManager(ProjectConfig.with_repo_root(Path("/tmp/fake")))
     name = mgr.resolve_run_name(None, pipeline="baseline", method="bbox")
     assert name.startswith("baseline_bbox_")
 
 
 def test_run_manager_exists_raises(tmp_path: Path) -> None:
-    cfg = ProjectConfig(repo_root=tmp_path)
+    cfg = ProjectConfig.with_repo_root(tmp_path)
     mgr = RunManager(cfg)
     run_dir = mgr.prepare_run("test_run", overwrite=False)
     (run_dir / "predictions.csv").write_text("x")
@@ -30,7 +30,7 @@ def test_run_manager_exists_raises(tmp_path: Path) -> None:
 
 
 def test_run_manager_overwrite(tmp_path: Path) -> None:
-    cfg = ProjectConfig(repo_root=tmp_path)
+    cfg = ProjectConfig.with_repo_root(tmp_path)
     mgr = RunManager(cfg)
     run_dir = mgr.prepare_run("test_run", overwrite=False)
     (run_dir / "old.txt").write_text("old")
@@ -53,7 +53,7 @@ def test_evaluate_run_output_dir(tmp_path: Path) -> None:
 
 
 def test_append_registry(tmp_path: Path) -> None:
-    cfg = ProjectConfig(repo_root=tmp_path)
+    cfg = ProjectConfig.with_repo_root(tmp_path)
     mgr = RunManager(cfg)
     from src.evaluation import MetricResult
 

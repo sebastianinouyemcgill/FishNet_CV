@@ -9,7 +9,8 @@ Legacy mode (unchanged)::
 Managed experiment runs::
 
     python main.py --pipeline baseline --method bbox --run-name baseline_bbox_v1
-    python main.py --pipeline advanced --method pca --perspective --run-name advanced_pca_rect_v1
+    python main.py --pipeline advanced --method skeleton --grid-auto --depth --3d \\
+        --run-name advanced_full_v1
 """
 
 from __future__ import annotations
@@ -96,7 +97,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--perspective",
         action="store_true",
-        help="Apply homography-based perspective correction (advanced pipeline only)",
+        help="Homography rectification (advanced only, legacy path without grid/depth/3D)",
+    )
+    parser.add_argument(
+        "--grid-auto",
+        action="store_true",
+        help="Automatic grid calibration without fiduciary markers (advanced)",
+    )
+    parser.add_argument(
+        "--depth",
+        action="store_true",
+        help="Depth Anything V3 depth maps with caching (advanced)",
+    )
+    parser.add_argument(
+        "--3d",
+        dest="use_3d",
+        action="store_true",
+        help="3D skeleton arc-length measurement (advanced; requires --depth)",
     )
     parser.add_argument(
         "--limit",
@@ -146,6 +163,9 @@ def main() -> None:
                 overwrite=args.overwrite,
                 evaluate=not args.no_evaluate,
                 cfg=cfg,
+                use_grid_auto_calibration=args.grid_auto if pipeline == "advanced" else None,
+                use_depth_estimation=args.depth if pipeline == "advanced" else None,
+                use_3d_measurement=args.use_3d if pipeline == "advanced" else None,
             )
         except RunExistsError as exc:
             logger.error("%s", exc)
