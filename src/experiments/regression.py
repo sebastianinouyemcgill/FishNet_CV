@@ -1,5 +1,5 @@
 """
-Regression calibration experiments (train features → predict SH length).
+Regression calibration experiments (train features → predict SL length).
 """
 
 from __future__ import annotations
@@ -133,7 +133,7 @@ def build_feature_table(
     image_ids: list[str],
     ground_truth_path: Path,
 ) -> pd.DataFrame:
-    """Extract per-image features merged with manual SH length labels."""
+    """Extract per-image features merged with manual SL length labels."""
     gt = load_ground_truth_csv(ground_truth_path)
     if "length_mm" not in gt.columns:
         raise ValueError(f"Ground truth CSV needs length_mm; got {list(gt.columns)}")

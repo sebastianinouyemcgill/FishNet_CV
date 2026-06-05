@@ -1,5 +1,5 @@
 """
-Optional regression stage: baseline features → calibrated SH length (mm).
+Optional regression stage: baseline features → calibrated SL length (mm).
 
 Does not modify ``pipelines.base.run_inference``; baseline experiments stay identical
 when ``cfg.use_regression_model`` is False.

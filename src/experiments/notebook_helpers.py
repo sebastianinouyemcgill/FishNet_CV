@@ -51,7 +51,7 @@ class RunExperimentsConfig:
     use_3d_measurement: bool = False
     use_hrnet_keypoints: bool = False
     use_pseudo_label_training: bool = False
-    # Feature-based SH length calibration (trains on validation_lengths.csv)
+    # Feature-based SL length calibration (trains on validation_lengths.csv)
     run_regression_calibration: bool = False
     regression_run_name: str = "regression_calibrated_v1"
     regression_model_type: str = "random_forest"

@@ -1,5 +1,5 @@
 """
-Feature-based regression calibration for fish SH length (mm).
+Feature-based regression calibration for fish SL length (mm).
 
 Skeleton length is the strongest single geometric estimator but system bias varies with
 pose and mask quality. A sklearn regressor learns a correction from multiple mask
@@ -50,7 +50,7 @@ def _make_estimator(model_type: str = "random_forest", **kwargs: Any):
 
 
 class LengthRegressionModel:
-    """Sklearn wrapper for mask-feature → true SH length (mm) regression."""
+    """Sklearn wrapper for mask-feature → true SL length (mm) regression."""
 
     def __init__(self, model_type: str = "random_forest", **estimator_kwargs: Any) -> None:
         self.model_type = model_type
