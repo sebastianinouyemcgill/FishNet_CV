@@ -62,6 +62,22 @@ def test_preview_dataframe():
     assert len(df) == 1
 
 
+def test_preview_regression_calibration_flag():
+    cfg = RunExperimentsConfig(
+        pipelines=["advanced"],
+        methods=["skeleton"],
+        splits=["valid"],
+        run_regression_calibration=True,
+    )
+    df = preview_experiment_specs(build_experiment_specs(cfg), cfg)
+    assert len(df) == 2
+    reg = df[df["pipeline"] == "regression"].iloc[0]
+    adv = df[df["pipeline"] == "advanced"].iloc[0]
+    assert bool(reg["train_regression"])
+    assert not bool(adv["train_regression"])
+    assert not bool(adv["apply_saved_model"])
+
+
 def test_filter_summary_latest_per_run():
     df = pd.DataFrame(
         [

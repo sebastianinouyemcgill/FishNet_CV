@@ -6,7 +6,7 @@ Used by ``03_run_experiments.ipynb`` and ``04_analyze_results.ipynb``.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +34,9 @@ class RunExperimentsConfig:
     image_ids: list[str] | None = None
     validation_set_only: bool = True
     limit: int | None = None
+
+    # validation_lengths | validation_lengths2 | lengths_mm
+    ground_truth_source: str = "validation_lengths"
 
     overwrite: bool = True
     visualize: bool = False
@@ -106,6 +109,7 @@ def project_config_for_experiments(run_cfg: RunExperimentsConfig | None = None) 
     base = get_config()
     if run_cfg is None:
         return base
+    base = replace(base, ground_truth_source=run_cfg.ground_truth_source)
     return apply_storage_preferences(
         base,
         cache_results=run_cfg.cache_results,
@@ -183,9 +187,21 @@ def preview_experiment_specs(
     specs: list[dict[str, Any]],
     run_cfg: RunExperimentsConfig | None = None,
 ) -> pd.DataFrame:
-    """Human-readable preview before launching runs."""
+    """
+    Human-readable preview before launching runs.
+
+    Columns
+    -------
+    train_regression:
+        True on the dedicated ``regression`` pipeline row when
+        ``run_regression_calibration`` is enabled (trains a new model).
+    apply_saved_model:
+        True when a baseline spec uses ``use_regression_model`` with a saved
+        ``regression_model_path`` (inference only).
+    """
+    train_on = bool(run_cfg and run_cfg.run_regression_calibration)
     rows = []
-    if run_cfg and run_cfg.run_regression_calibration:
+    if train_on:
         rows.append(
             {
                 "run_name": run_cfg.regression_run_name,
@@ -197,7 +213,8 @@ def preview_experiment_specs(
                 "grid": False,
                 "depth": False,
                 "3d": False,
-                "regression": True,
+                "train_regression": True,
+                "apply_saved_model": False,
             }
         )
     for spec in specs:
@@ -212,10 +229,17 @@ def preview_experiment_specs(
                 "grid": spec.get("use_grid_auto_calibration", False),
                 "depth": spec.get("use_depth_estimation", False),
                 "3d": spec.get("use_3d_measurement", False),
-                "regression": spec.get("use_regression_model", False),
+                "train_regression": False,
+                "apply_saved_model": bool(spec.get("use_regression_model", False)),
             }
         )
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+    if train_on and run_cfg is not None:
+        print(
+            f"run_regression_calibration=True → adds run '{run_cfg.regression_run_name}' "
+            f"(train_regression=True on that row; other rows are unchanged)"
+        )
+    return df
 
 
 def run_configured_experiments(

@@ -80,6 +80,8 @@ class ProjectConfig:
 
     calibration_rect_mm: float = CALIBRATION_RECT_MM
     default_split: str = "test"
+    # Ground truth CSV key → data/annotations/<file> (see experiments.ground_truth.GROUND_TRUTH_SOURCES)
+    ground_truth_source: str = "validation_lengths"
     measurement_method: str = "bbox"
     use_perspective: bool = False
     apply_perspective_correction: bool = False  # legacy alias; kept in sync via __post_init__

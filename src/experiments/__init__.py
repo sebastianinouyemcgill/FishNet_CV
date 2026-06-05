@@ -20,8 +20,18 @@ import pandas as pd
 
 from src.config import ProjectConfig, get_config
 from src.evaluation import MetricResult, evaluate_run, load_predictions_csv
-from src.experiments.ground_truth import default_ground_truth_path, load_validation_image_ids
-from src.experiments.regression import run_regression_experiment
+from src.experiments.ground_truth import (
+    GROUND_TRUTH_SOURCES,
+    default_ground_truth_path,
+    load_validation_image_ids,
+    resolve_ground_truth_path,
+)
+from src.experiments.comparison_grid import format_comparison_table, run_four_way_comparison
+from src.experiments.regression import (
+    run_regression_experiment,
+    run_skeleton_regression_comparison,
+    skeleton_vs_regression_metrics,
+)
 from src.experiments.results import ExperimentResult, results_to_dataframe
 from src.experiments.run_manager import RunExistsError, RunManager
 from src.pipelines.advanced import AdvancedPipeline
@@ -38,6 +48,12 @@ __all__ = [
     "run_experiment",
     "run_experiments",
     "run_regression_experiment",
+    "GROUND_TRUTH_SOURCES",
+    "resolve_ground_truth_path",
+    "run_four_way_comparison",
+    "format_comparison_table",
+    "run_skeleton_regression_comparison",
+    "skeleton_vs_regression_metrics",
     "results_to_dataframe",
     "default_ground_truth_path",
     "load_validation_image_ids",
@@ -173,7 +189,9 @@ def run_experiment(
         )
 
     n_predictions = len(load_predictions_csv(predictions_path))
-    gt_path = Path(ground_truth_path) if ground_truth_path else default_ground_truth_path(cfg)
+    from src.experiments.ground_truth import resolve_ground_truth_path
+
+    gt_path = Path(ground_truth_path) if ground_truth_path else resolve_ground_truth_path(cfg)
 
     metrics: MetricResult | None = None
     comparison_path: Path | None = None

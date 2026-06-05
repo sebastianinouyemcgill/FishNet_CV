@@ -14,7 +14,10 @@ from src.calibration import calibrate_sample, rectify_image
 from src.config import ProjectConfig, get_config
 from src.dataset import iterate_image_ids
 from src.evaluation import MetricResult, evaluate_run, load_ground_truth_csv, mae, rmse
-from src.experiments.ground_truth import default_ground_truth_path, load_validation_image_ids
+from src.experiments.ground_truth import (
+    load_validation_image_ids,
+    resolve_ground_truth_path,
+)
 from src.experiments.results import ExperimentResult
 from src.experiments.run_manager import RunManager
 from src.masks import mask_from_class
@@ -23,6 +26,105 @@ from src.models.length_regression import TARGET_COLUMN, LengthRegressionModel
 from src.pipelines.regression_inference import run_regression_inference
 
 logger = logging.getLogger(__name__)
+
+
+def skeleton_vs_regression_metrics(comparison: pd.DataFrame) -> dict[str, float]:
+    """MAE/RMSE for skeleton-only vs regression-corrected predictions."""
+    if not {"length_mm", "predicted_length_mm", "skeleton_length_mm"}.issubset(comparison.columns):
+        raise ValueError(
+            f"comparison needs length_mm, predicted_length_mm, skeleton_length_mm; "
+            f"got {list(comparison.columns)}"
+        )
+    y = comparison["length_mm"].to_numpy(dtype=float)
+    skeleton = comparison["skeleton_length_mm"].to_numpy(dtype=float)
+    regression = comparison["predicted_length_mm"].to_numpy(dtype=float)
+    return {
+        "n_samples": int(len(comparison)),
+        "skeleton_mae_mm": mae(y, skeleton),
+        "skeleton_rmse_mm": rmse(y, skeleton),
+        "regression_mae_mm": mae(y, regression),
+        "regression_rmse_mm": rmse(y, regression),
+        "mae_improvement_mm": mae(y, skeleton) - mae(y, regression),
+        "rmse_improvement_mm": rmse(y, skeleton) - rmse(y, regression),
+    }
+
+
+def run_skeleton_regression_comparison(
+    cfg: ProjectConfig | None = None,
+    *,
+    run_name: str | None = None,
+    baseline_run_name: str | None = None,
+    ground_truth_path: Path | str | None = None,
+    overwrite: bool = False,
+    model_type: str = "random_forest",
+    train_split: str = "valid",
+    eval_split: str = "valid",
+) -> dict[str, object]:
+    """
+    Train regression on skeleton features, run baseline skeleton, and return metrics.
+
+    Uses ``cfg.ground_truth_source`` (e.g. ``validation_lengths2``) for labels and eval.
+    """
+    from src.experiments import run_experiment
+
+    cfg = cfg or get_config()
+    gt_path = (
+        Path(ground_truth_path)
+        if ground_truth_path
+        else resolve_ground_truth_path(cfg)
+    )
+    if gt_path is None:
+        raise FileNotFoundError(f"No ground truth for source={cfg.ground_truth_source!r}")
+
+    baseline_name = baseline_run_name or f"baseline_skeleton_{cfg.ground_truth_source}"
+    reg_name = run_name or f"regression_skeleton_{cfg.ground_truth_source}"
+
+    baseline_result = run_experiment(
+        cfg=cfg,
+        pipeline="baseline",
+        method="skeleton",
+        split=eval_split,
+        run_name=baseline_name,
+        ground_truth_path=gt_path,
+        validation_set_only=True,
+        overwrite=overwrite,
+        evaluate=True,
+    )
+    reg_result = run_regression_experiment(
+        cfg=cfg,
+        train_split=train_split,
+        eval_split=eval_split,
+        run_name=reg_name,
+        ground_truth_path=gt_path,
+        validation_set_only=True,
+        overwrite=overwrite,
+        model_type=model_type,
+        evaluate=True,
+    )
+
+    comparison = pd.read_csv(reg_result.comparison_path)
+    paired = skeleton_vs_regression_metrics(comparison)
+    paired["ground_truth_source"] = cfg.ground_truth_source
+    paired["ground_truth_path"] = str(gt_path)
+    paired["baseline_run"] = baseline_result.run_name
+    paired["regression_run"] = reg_result.run_name
+    if baseline_result.metrics:
+        paired["baseline_run_mae_mm"] = baseline_result.metrics.mae_mm
+        paired["baseline_run_rmse_mm"] = baseline_result.metrics.rmse_mm
+
+    logger.info(
+        "GT=%s | skeleton MAE=%.2f RMSE=%.2f | regression MAE=%.2f RMSE=%.2f",
+        cfg.ground_truth_source,
+        paired["skeleton_mae_mm"],
+        paired["skeleton_rmse_mm"],
+        paired["regression_mae_mm"],
+        paired["regression_rmse_mm"],
+    )
+    return {
+        "metrics": paired,
+        "baseline": baseline_result,
+        "regression": reg_result,
+    }
 
 
 def build_feature_table(
@@ -98,11 +200,16 @@ def run_regression_experiment(
     """
     cfg = cfg or get_config()
     eval_split = eval_split or cfg.default_split
-    gt_path = Path(ground_truth_path) if ground_truth_path else default_ground_truth_path(cfg)
+    gt_path = (
+        Path(ground_truth_path)
+        if ground_truth_path
+        else resolve_ground_truth_path(cfg)
+    )
     if gt_path is None or not gt_path.is_file():
         raise FileNotFoundError(
-            "Regression training requires labeled lengths. "
-            "Add data/annotations/validation_lengths.csv or pass ground_truth_path."
+            f"Regression training requires labeled lengths. "
+            f"Expected {cfg.data_annotations} / "
+            f"{cfg.ground_truth_source} (see GROUND_TRUTH_SOURCES) or pass ground_truth_path."
         )
 
     if validation_set_only and image_ids is None:
@@ -152,6 +259,8 @@ def run_regression_experiment(
             "train_split": train_split,
             "model_type": model_type,
             "use_regression_model": True,
+            "ground_truth_source": cfg.ground_truth_source,
+            "baseline_method": "skeleton",
         },
     )
 
