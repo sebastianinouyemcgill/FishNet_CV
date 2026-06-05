@@ -1,13 +1,32 @@
-# --- Project-specific ---
-# Ignore dataset contents but keep folder scaffolding
+# =============================================================================
+# FishNet CV — presentation repo (commit code + config + submission CSV only)
+# =============================================================================
+
+# --- Local data & generated artifacts (never commit) ---
 data/**/*
 !data/**/.gitkeep
 !data/**/*.yaml
+
 assignment.pdf
 outputs/**/*
 !outputs/**/.gitkeep
 
-# Grid calibration audit / investigation (read-only diagnostics; never commit)
+cache/
+figures/
+logs/
+exports/
+runs/
+wandb/
+
+# Trained models & large ML artifacts
+*.joblib
+*.pt
+*.pth
+*.onnx
+*.tar.gz
+*.zip
+
+# Grid / depth audit outputs (experimental diagnostics)
 **/grid_audit/
 **/grid_audit*/
 **/grid_calibration_audit/
@@ -21,13 +40,9 @@ grid_audit_failure_categories.csv
 grid_audit_report.md
 grid_calibration_audit.csv
 
-# Unified storage (Colab Drive mirror / local optional)
-cache/
-figures/
-logs/
-exports/
-runs/
-!runs/.gitkeep
+# --- Submission deliverable (COMMIT this file) ---
+# predictions.csv at repo root is the graded test-set export
+!predictions.csv
 
 # --- Python ---
 __pycache__/
@@ -74,22 +89,25 @@ htmlcov/
 # --- IDE / OS ---
 .DS_Store
 .cursor/
-
-# --- Python bytecode (repo only; .venv excluded by path) ---
-**/__pycache__/
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# --- Logs / env secrets ---
+# --- Logs / secrets ---
 *.log
 .env
 .envrc
 
-# --- Optional ML artifacts ---
-runs/
-wandb/
-*.pt
-*.pth
-*.onnx
+# =============================================================================
+# src/ layout (all .py under src/ is committed — nothing below is gitignored)
+#
+# Production pipeline:
+#   config, paths, dataset, masks, evaluation, submission
+#   methods/geometric, methods/calibration/marker, methods/regression, methods/estimator
+#   measurement/, calibration/marker, models/, pipelines/base|baseline|regression_inference
+#   experiments/, colab_bootstrap, visualization/, notebooks/
+#
+# Experimental (in repo, disabled by default in config.yaml):
+#   calibration/grid_auto, depth/, pipelines/advanced*, keypoints/, experimental/
+# =============================================================================

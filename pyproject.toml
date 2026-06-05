@@ -51,6 +51,9 @@ include = ["src*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "slow: integration tests that re-run inference (deselect with -m 'not slow')",
+]
 
 [tool.ruff]
 line-length = 100

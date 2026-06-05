@@ -1,0 +1,25 @@
+# FishNet CV — default configuration (presentation / reproducibility)
+# Override via environment variables (see src/config.py) or ProjectConfig fields in notebooks.
+
+method: skeleton          # bbox | pca | skeleton (recommended: skeleton)
+
+calibration: marker       # marker (production) | grid (experimental, off by default)
+use_grid_calibration: false
+
+regression:
+  enabled: false
+  model_path: null        # path to regression_model.joblib when reusing a trained model
+  train_on_run: false     # train new model during experiment (notebook: run_regression_calibration)
+
+experimental:
+  depth: false
+  depth_3d: false
+  perspective: false
+
+ground_truth_source: validation_lengths   # validation_lengths | validation_lengths2 | lengths_mm
+
+dataset:
+  default_split: valid
+
+outputs:
+  runs_root: outputs/runs

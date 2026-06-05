@@ -234,6 +234,60 @@ def apply_storage_preferences(
     return cfg_out
 
 
+def load_config_yaml(path: Path | str | None = None) -> ProjectConfig:
+    """
+    Load ``config.yaml`` and merge into :class:`ProjectConfig`.
+
+    File keys (see repo ``config.yaml``):
+    - ``method`` → ``measurement_method``
+    - ``calibration`` / ``use_grid_calibration`` → grid flags
+    - ``regression.enabled`` → ``use_regression_model``
+    - ``experimental.*`` → depth / perspective flags
+    - ``ground_truth_source``
+    """
+    import yaml
+    from dataclasses import replace
+
+    cfg = get_config()
+    yaml_path = Path(path) if path else cfg.repo_root / "config.yaml"
+    if not yaml_path.is_file():
+        return cfg
+
+    with yaml_path.open() as f:
+        data = yaml.safe_load(f) or {}
+
+    updates: dict = {}
+    if method := data.get("method"):
+        updates["measurement_method"] = str(method)
+    if split := data.get("dataset", {}).get("default_split"):
+        updates["default_split"] = str(split)
+    if gt := data.get("ground_truth_source"):
+        updates["ground_truth_source"] = str(gt)
+
+    cal = str(data.get("calibration", "marker")).lower()
+    grid_on = bool(data.get("use_grid_calibration", False)) or cal == "grid"
+    updates["use_grid_auto_calibration"] = grid_on
+    updates["use_grid_calibration"] = grid_on
+
+    reg = data.get("regression") or {}
+    if reg.get("enabled"):
+        updates["use_regression_model"] = True
+    if reg.get("model_path"):
+        updates["regression_model_path"] = Path(str(reg["model_path"]))
+
+    exp = data.get("experimental") or {}
+    if exp.get("depth"):
+        updates["use_depth_estimation"] = True
+        updates["use_depth_model"] = True
+    if exp.get("depth_3d"):
+        updates["use_3d_measurement"] = True
+    if exp.get("perspective"):
+        updates["use_perspective"] = True
+        updates["apply_perspective_correction"] = True
+
+    return replace(cfg, **updates)
+
+
 def get_config() -> ProjectConfig:
     """
     Build configuration, optionally overriding split/method from environment.
